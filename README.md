@@ -19,7 +19,7 @@ Add the following dependency to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/TraceInfoManager.git", from: "1.0.0")
+    .package(url: "https://github.com/yurovmd/TraceInfoManager.git", from: "1.0.0")
 ]
 ```
 
@@ -28,7 +28,7 @@ dependencies: [
 ```swift
 import TraceInfoManager
 
-let queueManager = TraceInfoManager.QueueManager(maxConcurrent: 5)
+let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
 Task {
     let queueIndex = try await queueManager.allocateQueueIndex()
     try await queueManager.incrementSent(queueIndex: queueIndex)
