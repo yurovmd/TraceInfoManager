@@ -3,7 +3,7 @@ import XCTest
 
 final class QueueManagerTests: XCTestCase {
     func testAllocateQueueIndex() async throws {
-        let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
+        let queueManager = QueueManagerFactory.traceInfoCounter(maxConcurrent: 5)
         let index1 = try await queueManager.allocateQueueIndex()
         let index2 = try await queueManager.allocateQueueIndex()
         XCTAssertEqual(index1, 0)
@@ -11,7 +11,7 @@ final class QueueManagerTests: XCTestCase {
     }
     
     func testIncrementSent() async throws {
-        let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
+        let queueManager = QueueManagerFactory.traceInfoCounter(maxConcurrent: 5)
         let queueIndex = try await queueManager.allocateQueueIndex()
         try await queueManager.incrementSent(queueIndex: queueIndex)
         let traceInfo = await queueManager.getTraceInfo(queueIndex: queueIndex)
@@ -21,7 +21,7 @@ final class QueueManagerTests: XCTestCase {
     }
     
     func testIncrementSucceeded() async throws {
-        let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
+        let queueManager = QueueManagerFactory.traceInfoCounter(maxConcurrent: 5)
         let queueIndex = try await queueManager.allocateQueueIndex()
         try await queueManager.incrementSent(queueIndex: queueIndex)
         try await queueManager.incrementSucceeded(queueIndex: queueIndex)
@@ -32,7 +32,7 @@ final class QueueManagerTests: XCTestCase {
     }
     
     func testMultipleRequests() async throws {
-        let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
+        let queueManager = QueueManagerFactory.traceInfoCounter(maxConcurrent: 5)
         let queueIndex = try await queueManager.allocateQueueIndex()
         try await queueManager.incrementSent(queueIndex: queueIndex)
         try await queueManager.incrementSucceeded(queueIndex: queueIndex)
@@ -45,7 +45,7 @@ final class QueueManagerTests: XCTestCase {
     }
     
     func testInvalidQueueIndex() async throws {
-        let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
+        let queueManager = QueueManagerFactory.traceInfoCounter(maxConcurrent: 5)
         let invalidQueueIndex: UInt = 10
         do {
             try await queueManager.incrementSent(queueIndex: invalidQueueIndex)
@@ -62,7 +62,7 @@ final class QueueManagerTests: XCTestCase {
     }
     
     func testDeallocateQueueIndex() async throws {
-        let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
+        let queueManager = QueueManagerFactory.traceInfoCounter(maxConcurrent: 5)
         let queueIndex = try await queueManager.allocateQueueIndex()
         await queueManager.deallocateQueueIndex(queueIndex: queueIndex)
         let traceInfo = await queueManager.getTraceInfo(queueIndex: queueIndex)

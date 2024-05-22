@@ -28,12 +28,11 @@ dependencies: [
 ```swift
 import TraceInfoManager
 
-let queueManager = TraceInfoManager.QueueManagerImpl(maxConcurrent: 5)
+let queueManager = QueueManagerFactory.traceInfoCounter(maxConcurrent: 5)
 Task {
     let queueIndex = try await queueManager.allocateQueueIndex()
     try await queueManager.incrementSent(queueIndex: queueIndex)
     // Process your item here
-    let success = true // Replace with actual result of processing
     try await queueManager.incrementSucceeded(queueIndex: queueIndex)
     // Deallocate the queue index when done
     await queueManager.deallocateQueueIndex(queueIndex: queueIndex)
