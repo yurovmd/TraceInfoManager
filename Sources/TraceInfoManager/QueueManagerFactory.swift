@@ -8,6 +8,7 @@
 import Foundation
 
 
+/// `QueueManagerFactory` provides a factory method to create a `QueueManager` instance.
 public class QueueManagerFactory {
     /// Initializes the QueueManager that works with TraceInfo, with a specified number of concurrent queues.
     /// - Parameter maxConcurrent: The maximum number of concurrent queues.

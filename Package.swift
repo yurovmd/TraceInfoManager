@@ -14,12 +14,17 @@ let package = Package(
             name: "TraceInfoManager",
             targets: ["TraceInfoManager"]),
     ],
-    dependencies: [],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "0.0.1")
+    ],
     targets: [
         .target(
             name: "TraceInfoManager",
-            dependencies: [],
-            path: "Sources"),
+            dependencies: [
+                .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")
+            ],
+            path: "Sources"
+        ),
         .testTarget(
             name: "TraceInfoManagerTests",
             dependencies: ["TraceInfoManager"],

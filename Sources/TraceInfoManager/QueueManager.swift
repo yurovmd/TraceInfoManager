@@ -5,81 +5,85 @@
 //  Created by MAKSIM YUROV on 21/05/2024.
 //
 
+import AsyncAlgorithms
 import Foundation
 
+/// `QueueManager` defines the methods for managing queues and their associated `TraceInfo` objects.
 public protocol QueueManager {
-    func allocateQueueIndex() async throws -> UInt
-    func deallocateQueueIndex(queueIndex: UInt) async
-    func incrementSent(queueIndex: UInt) async throws
-    func incrementSucceeded(queueIndex: UInt) async throws
-    func getTraceInfo(queueIndex: UInt) async -> TraceInfo?
+    /// Executes a closure with an available `TraceInfo`.
+    /// - Parameter operation: The closure to execute.
+    func execute(operation: @escaping (TraceInfo) async throws -> Void) async throws
 }
 
-/// Errors that can be thrown by `QueueManager`.
-public enum QueueManagerError: Error {
-    case invalidQueueIndex
-    case noAvailableQueueIndex
-}
-
-/// Manages multiple concurrent queues and tracks the counts of processed and successfully processed items.
+/// `QueueManagerImpl` implements the `QueueManager` protocol to manage queues and their associated `TraceInfo` objects.
 actor QueueManagerImpl: QueueManager {
     private var traceInfos = [UInt: TraceInfo]()
     private let maxConcurrent: UInt
-    private var allocatedIndices = Set<UInt>()
+    private var availableIndices: Set<UInt>
+    private let waitingLine = AsyncChannel<CheckedContinuation<UInt, Error>>()
     
-    /// Initializes the QueueManager with a specified number of concurrent queues.
+    /// Initializes the `QueueManagerImpl` with a specified number of concurrent queues.
     /// - Parameter maxConcurrent: The maximum number of concurrent queues.
     init(maxConcurrent: UInt = 10) {
         self.maxConcurrent = maxConcurrent
+        self.availableIndices = Set(0..<maxConcurrent)
+        for index in 0..<maxConcurrent {
+            traceInfos[index] = TraceInfo(queueIndex: index)
+        }
+        Task {
+            await self.processWaitingLine()
+        }
     }
     
-    /// Allocates and returns an available queue index.
-    /// - Returns: An available queue index.
-    func allocateQueueIndex() async throws -> UInt {
-        for index in 0..<maxConcurrent {
-            if !allocatedIndices.contains(index) {
-                allocatedIndices.insert(index)
-                return index
+    // MARK: - QueueManager
+    
+    func execute(operation: @escaping (TraceInfo) async throws -> Void) async throws {
+        let queueIndex = try await getQueueIndex()
+        guard let traceInfo = traceInfos[queueIndex] else {
+            fatalError("Queue index \(queueIndex) should always be valid")
+        }
+        traceInfos[queueIndex]?.sent += 1
+        do {
+            try await operation(traceInfo)
+            traceInfos[queueIndex]?.succeeded += 1
+        } catch {
+            Task {
+                await self.returnQueueIndex(queueIndex)
+            }
+            throw error
+        }
+        Task {
+            await self.returnQueueIndex(queueIndex)
+        }
+    }
+    
+    // MARK: - Private Section
+    
+    private func getQueueIndex() async throws -> UInt {
+        if let index = availableIndices.first {
+            availableIndices.remove(index)
+            return index
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            Task {
+                await self.waitingLine.send(continuation)
             }
         }
-        throw QueueManagerError.noAvailableQueueIndex
     }
     
-    /// Increments the count of processed items for a specified queue.
-    /// - Parameter queueIndex: The index of the queue.
-    func incrementSent(queueIndex: UInt) async throws {
-        guard queueIndex < maxConcurrent else {
-            throw QueueManagerError.invalidQueueIndex
+    private func returnQueueIndex(_ index: UInt) async {
+        availableIndices.insert(index)
+        await processWaitingLine()
+    }
+    
+    private func processWaitingLine() async {
+        for await continuation in waitingLine {
+            if let index = availableIndices.first {
+                availableIndices.remove(index)
+                continuation.resume(returning: index)
+            } else {
+                await waitingLine.send(continuation)
+            }
         }
-        
-        var traceInfo = traceInfos[queueIndex] ?? TraceInfo(queueIndex: queueIndex)
-        traceInfo.sent += 1
-        traceInfos[queueIndex] = traceInfo
-    }
-    
-    /// Increments the count of successfully processed items for a specified queue.
-    /// - Parameter queueIndex: The index of the queue.
-    func incrementSucceeded(queueIndex: UInt) async throws {
-        guard queueIndex < maxConcurrent else {
-            throw QueueManagerError.invalidQueueIndex
-        }
-        
-        var traceInfo = traceInfos[queueIndex] ?? TraceInfo(queueIndex: queueIndex)
-        traceInfo.succeeded += 1
-        traceInfos[queueIndex] = traceInfo
-    }
-    
-    /// Retrieves the trace information for a specified queue.
-    /// - Parameter queueIndex: The index of the queue.
-    /// - Returns: The trace information for the queue, if it exists.
-    func getTraceInfo(queueIndex: UInt) async -> TraceInfo? {
-        return traceInfos[queueIndex]
-    }
-    
-    /// Deallocates a previously allocated queue index.
-    /// - Parameter queueIndex: The index of the queue to deallocate.
-    func deallocateQueueIndex(queueIndex: UInt) async {
-        allocatedIndices.remove(queueIndex)
-        traceInfos[queueIndex] = nil
     }
 }
