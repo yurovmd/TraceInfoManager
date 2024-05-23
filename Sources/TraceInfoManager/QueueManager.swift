@@ -39,13 +39,15 @@ actor QueueManagerImpl: QueueManager {
     
     func execute(operation: @escaping (TraceInfo) async throws -> Void) async throws {
         let queueIndex = try await getQueueIndex()
-        guard let traceInfo = traceInfos[queueIndex] else {
+        guard var traceInfo = traceInfos[queueIndex] else {
             fatalError("Queue index \(queueIndex) should always be valid")
         }
-        traceInfos[queueIndex]?.sent += 1
+        traceInfo.sent += 1
+        traceInfos[queueIndex] = traceInfo
         do {
             try await operation(traceInfo)
-            traceInfos[queueIndex]?.succeeded += 1
+            traceInfo.succeeded += 1
+            traceInfos[queueIndex] = traceInfo
         } catch {
             Task {
                 await self.returnQueueIndex(queueIndex)
